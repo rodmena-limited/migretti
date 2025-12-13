@@ -5,16 +5,20 @@ import re
 import ulid
 from migretti.config import CONFIG_FILENAME
 from migretti.core import (
-    apply_migrations, 
-    rollback_migrations, 
-    get_migration_status, 
-    get_head, 
-    verify_checksums
+    apply_migrations,
+    rollback_migrations,
+    get_migration_status,
+    get_head,
+    verify_checksums,
 )
 from migretti.logging_setup import setup_logging, get_logger
 from migretti.io_utils import atomic_write
+from migretti.prompt_cmd import cmd_prompt
+from migretti.seed import cmd_seed
+from migretti.squash import cmd_squash
 
 logger = get_logger()
+
 
 def check_prod_protection(args):
     """
@@ -22,12 +26,19 @@ def check_prod_protection(args):
     Simple detection: if MG_ENV or --env is 'prod', 'production', 'live'.
     """
     env = getattr(args, "env", None) or os.getenv("MG_ENV", "default")
-    if env.lower() in ["prod", "production", "live"] and not getattr(args, "dry_run", False) and not getattr(args, "yes", False):
-        print(f"⚠️  WARNING: You are about to run this operation against the '{env}' environment!")
+    if (
+        env.lower() in ["prod", "production", "live"]
+        and not getattr(args, "dry_run", False)
+        and not getattr(args, "yes", False)
+    ):
+        print(
+            f"⚠️  WARNING: You are about to run this operation against the '{env}' environment!"
+        )
         response = input("Are you sure you want to continue? (yes/no): ")
         if response.lower() != "yes":
             print("Operation cancelled.")
             sys.exit(0)
+
 
 def cmd_init(args):
     """Initialize a new migration project."""
@@ -75,20 +86,21 @@ envs:
     else:
         print("migrations/ directory already exists")
 
+
 def cmd_create(args):
     """Create a new migration script."""
     name = args.name
     # Sanitize name
-    slug = re.sub(r'[^a-z0-9]+', '_', name.lower()).strip('_')
-    
+    slug = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+
     migration_id = str(ulid.ULID())
     filename = f"{migration_id}_{slug}.sql"
     filepath = os.path.join("migrations", filename)
-    
+
     if not os.path.exists("migrations"):
         logger.error("migrations directory not found. Run 'mg init' first.")
         sys.exit(1)
-        
+
     template = """-- migration: {name}
 -- id: {id}
 
@@ -106,38 +118,44 @@ def cmd_create(args):
         logger.error(f"Failed to create migration file: {e}")
         sys.exit(1)
 
+
 def cmd_apply(args):
     """Apply all pending migrations."""
     check_prod_protection(args)
     apply_migrations(env=args.env, dry_run=args.dry_run)
+
 
 def cmd_rollback(args):
     """Rollback migrations."""
     check_prod_protection(args)
     rollback_migrations(steps=args.steps, env=args.env, dry_run=args.dry_run)
 
+
 def cmd_up(args):
     """Apply the next pending migration."""
     check_prod_protection(args)
     apply_migrations(limit=1, env=args.env, dry_run=args.dry_run)
+
 
 def cmd_down(args):
     """Rollback the last applied migration."""
     check_prod_protection(args)
     rollback_migrations(steps=1, env=args.env, dry_run=args.dry_run)
 
+
 def cmd_status(args):
     """Show migration status."""
     try:
         status_list = get_migration_status(env=args.env)
-        applied = sum(1 for s in status_list if s['status'] == 'applied')
-        pending = sum(1 for s in status_list if s['status'] == 'pending')
+        applied = sum(1 for s in status_list if s["status"] == "applied")
+        pending = sum(1 for s in status_list if s["status"] == "pending")
         print(f"Total migrations: {len(status_list)}")
         print(f"Applied: {applied}")
         print(f"Pending: {pending}")
     except Exception as e:
         logger.error(f"Error getting status: {e}")
         sys.exit(1)
+
 
 def cmd_list(args):
     """List all migrations."""
@@ -146,7 +164,7 @@ def cmd_list(args):
         if not status_list:
             print("No migrations found.")
             return
-            
+
         print(f"{'ID':<26} | {'Status':<10} | {'Name'}")
         print("-" * 60)
         for item in status_list:
@@ -154,6 +172,7 @@ def cmd_list(args):
     except Exception as e:
         logger.error(f"Error listing migrations: {e}")
         sys.exit(1)
+
 
 def cmd_head(args):
     """Show current schema version."""
@@ -169,6 +188,7 @@ def cmd_head(args):
         logger.error(f"Error getting head: {e}")
         sys.exit(1)
 
+
 def cmd_verify(args):
     """Verify applied migrations checksums."""
     try:
@@ -181,36 +201,57 @@ def cmd_verify(args):
         logger.error(f"Error verifying checksums: {e}")
         sys.exit(1)
 
+
 def main():
     parser = argparse.ArgumentParser(description="migretti - Database Migration Tool")
-    
+
     # Global arguments
     parser.add_argument("--env", help="Environment profile to use (e.g. dev, prod)")
-    parser.add_argument("--json-log", action="store_true", help="Output logs in JSON format")
+    parser.add_argument(
+        "--json-log", action="store_true", help="Output logs in JSON format"
+    )
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose logging")
-    
+
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # init
-    parser_init = subparsers.add_parser("init", help="Initialize a new migration project")
+    parser_init = subparsers.add_parser(
+        "init", help="Initialize a new migration project"
+    )
     parser_init.set_defaults(func=cmd_init)
 
     # create
-    parser_create = subparsers.add_parser("create", help="Create a new migration script")
+    parser_create = subparsers.add_parser(
+        "create", help="Create a new migration script"
+    )
     parser_create.add_argument("name", help="Name of the migration")
     parser_create.set_defaults(func=cmd_create)
 
     # apply
     parser_apply = subparsers.add_parser("apply", help="Apply all pending migrations")
-    parser_apply.add_argument("--dry-run", action="store_true", help="Show SQL without executing")
-    parser_apply.add_argument("--yes", "-y", action="store_true", help="Skip confirmation prompts")
+    parser_apply.add_argument(
+        "--dry-run", action="store_true", help="Show SQL without executing"
+    )
+    parser_apply.add_argument(
+        "--yes", "-y", action="store_true", help="Skip confirmation prompts"
+    )
     parser_apply.set_defaults(func=cmd_apply)
 
     # rollback
     parser_rollback = subparsers.add_parser("rollback", help="Rollback migrations")
-    parser_rollback.add_argument("steps", type=int, nargs='?', default=1, help="Number of steps to rollback (default: 1)")
-    parser_rollback.add_argument("--dry-run", action="store_true", help="Show SQL without executing")
-    parser_rollback.add_argument("--yes", "-y", action="store_true", help="Skip confirmation prompts")
+    parser_rollback.add_argument(
+        "steps",
+        type=int,
+        nargs="?",
+        default=1,
+        help="Number of steps to rollback (default: 1)",
+    )
+    parser_rollback.add_argument(
+        "--dry-run", action="store_true", help="Show SQL without executing"
+    )
+    parser_rollback.add_argument(
+        "--yes", "-y", action="store_true", help="Skip confirmation prompts"
+    )
     parser_rollback.set_defaults(func=cmd_rollback)
 
     # status
@@ -223,14 +264,24 @@ def main():
 
     # up
     parser_up = subparsers.add_parser("up", help="Apply the next pending migration")
-    parser_up.add_argument("--dry-run", action="store_true", help="Show SQL without executing")
-    parser_up.add_argument("--yes", "-y", action="store_true", help="Skip confirmation prompts")
+    parser_up.add_argument(
+        "--dry-run", action="store_true", help="Show SQL without executing"
+    )
+    parser_up.add_argument(
+        "--yes", "-y", action="store_true", help="Skip confirmation prompts"
+    )
     parser_up.set_defaults(func=cmd_up)
 
     # down
-    parser_down = subparsers.add_parser("down", help="Rollback the last applied migration")
-    parser_down.add_argument("--dry-run", action="store_true", help="Show SQL without executing")
-    parser_down.add_argument("--yes", "-y", action="store_true", help="Skip confirmation prompts")
+    parser_down = subparsers.add_parser(
+        "down", help="Rollback the last applied migration"
+    )
+    parser_down.add_argument(
+        "--dry-run", action="store_true", help="Show SQL without executing"
+    )
+    parser_down.add_argument(
+        "--yes", "-y", action="store_true", help="Skip confirmation prompts"
+    )
     parser_down.set_defaults(func=cmd_down)
 
     # head
@@ -238,14 +289,39 @@ def main():
     parser_head.set_defaults(func=cmd_head)
 
     # verify
-    parser_verify = subparsers.add_parser("verify", help="Verify applied migration checksums")
+    parser_verify = subparsers.add_parser(
+        "verify", help="Verify applied migration checksums"
+    )
     parser_verify.set_defaults(func=cmd_verify)
 
+    # prompt
+    parser_prompt = subparsers.add_parser(
+        "prompt", help="Show instructions for AI agents"
+    )
+    parser_prompt.set_defaults(func=cmd_prompt)
+
+    # seed
+    parser_seed = subparsers.add_parser("seed", help="Manage data seeding")
+    seed_subparsers = parser_seed.add_subparsers(dest="seed_command")
+
+    # seed run (default)
+    parser_seed.set_defaults(func=cmd_seed)
+
+    # seed create
+    seed_create = seed_subparsers.add_parser("create", help="Create a new seed file")
+    seed_create.add_argument("name", help="Name of the seed script")
+    seed_create.set_defaults(func=cmd_seed)
+
+    # squash
+    parser_squash = subparsers.add_parser("squash", help="Squash pending migrations")
+    parser_squash.add_argument("name", help="Name of the new squashed migration")
+    parser_squash.set_defaults(func=cmd_squash)
+
     args = parser.parse_args()
-    
+
     # Setup logging globally
     setup_logging(json_format=args.json_log, verbose=args.verbose)
-    
+
     if hasattr(args, "func"):
         try:
             args.func(args)
@@ -254,6 +330,7 @@ def main():
             sys.exit(1)
     else:
         parser.print_help()
+
 
 if __name__ == "__main__":
     main()

@@ -1,145 +1,187 @@
-# Migretti
+MIGRETTI
+========
 
-Migretti is a simple, efficient, and enterprise-ready database migration tool for Python applications using PostgreSQL (via psycopg3).
+Migretti is a database migration tool designed for Python applications utilizing PostgreSQL. It provides a strict, SQL-first approach to schema management, ensuring atomicity, consistency, and traceability of database changes.
 
-## Features
+1. INSTALLATION
+---------------
 
--   **SQL-based migrations**: Write plain SQL for UP and DOWN migrations.
--   **Enterprise Configuration**: Support for environment variables, `.env` files, and multiple environment profiles (dev, prod).
--   **Strict Concurrency Control**: Uses PostgreSQL advisory locks to ensure safe concurrent execution.
--   **Non-Transactional Migrations**: Support for `CREATE INDEX CONCURRENTLY` and other operations via `-- migrate: no-transaction`.
--   **Dry Run**: Inspect SQL before applying with `--dry-run`.
--   **Integrity Verification**: Verify that applied migrations match files on disk with `mg verify`.
--   **Production Protection**: Safety prompts when running against production environments.
--   **Structured Logging**: JSON-formatted logging support for observability.
--   **Atomic migrations**: Strict atomicity ensures data integrity.
--   **Audit logging**: Tracks who applied/rolled back migrations and when.
+To install Migretti, use pip:
 
-## Installation
+    pip install migretti
 
-```bash
-pip install migretti
-```
+Dependencies include `psycopg[binary]`, `pyyaml`, `python-ulid`, `python-dotenv`, and `sqlparse`.
 
-## Quick Start
+2. GETTING STARTED
+------------------
 
-### 1. Initialize a Project
+Initialize a new migration project in your repository root:
 
-Run `init` in your project root. This creates `mg.yaml` and a `migrations/` directory.
+    mg init
 
-```bash
-mg init
-```
+This command creates a `migrations/` directory and a `mg.yaml` configuration file.
 
-### 2. Configure Database
+3. CONFIGURATION
+----------------
 
-Migretti supports multiple ways to configure your database:
+Configuration is managed via the `mg.yaml` file. The tool also supports environment variable overrides and interpolation.
 
-**Option A: Environment Variables (Recommended for Production)**
-```bash
-export MG_DATABASE_URL=postgresql://user:pass@host:5432/dbname
-```
+Example `mg.yaml`:
 
-**Option B: `mg.yaml` Profiles**
-```yaml
-envs:
-  dev:
     database:
-      conninfo: postgresql://postgres:password@localhost/myapp_dev
-  prod:
-    database:
-      host: db.prod.com
-      user: dbuser
-      password: securepassword
-      dbname: myapp_prod
-```
+      host: localhost
+      port: 5432
+      user: postgres
+      password: ${DB_PASSWORD}
+      dbname: my_database
 
-Use profiles with the `--env` flag:
-```bash
-mg apply --env prod
-```
+    lock_id: 894321
 
-### 3. Create a Migration
+    envs:
+      production:
+        database:
+          host: db.prod.example.com
+          dbname: prod_db
+        lock_id: 999999
 
-```bash
-mg create add_users_table
-```
+    hooks:
+      pre_apply: echo "Backup starting..."
+      post_apply: echo "Migration complete."
 
-Edit the generated file `migrations/<ULID>_add_users_table.sql`:
+Environment Variables:
+- `MG_DATABASE_URL`: Overrides connection settings (e.g., `postgresql://user:pass@host/db`).
+- `MG_ENV`: Selects the active environment profile (default: `default`).
+- `MG_LOCK_ID`: Overrides the advisory lock ID.
 
-```sql
--- migration: Add Users Table
--- id: 01KCC600...
+Environment variable interpolation (e.g., `${VAR}`) is supported within `mg.yaml`.
 
--- migrate: up
-CREATE TABLE users (
-    id SERIAL PRIMARY KEY,
-    username TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
+4. MIGRATION WORKFLOW
+---------------------
 
--- migrate: down
-DROP TABLE users;
-```
+4.1. Creating Migrations
+------------------------
 
-**Non-Transactional Migrations (e.g., Concurrent Index)**
-Add the `-- migrate: no-transaction` directive:
+Generate a new migration script:
 
-```sql
--- migrate: no-transaction
--- migrate: up
-CREATE INDEX CONCURRENTLY idx_users_name ON users(username);
+    mg create add_users_table
 
--- migrate: down
-DROP INDEX CONCURRENTLY idx_users_name;
-```
+This creates a file in `migrations/` with a unique ULID prefix. Edit the file to define the schema changes:
 
-### 4. Apply Migrations
+    -- migration: Add Users Table
+    -- id: 01H...
+
+    -- migrate: up
+    CREATE TABLE users (id SERIAL PRIMARY KEY, name TEXT);
+
+    -- migrate: down
+    DROP TABLE users;
+
+4.2. Applying Migrations
+------------------------
 
 Apply all pending migrations:
 
-```bash
-mg apply
-```
+    mg apply
 
-Preview changes without applying:
+To apply only the next pending migration:
 
-```bash
-mg apply --dry-run
-```
+    mg up
 
-### 5. Check Status & Verify
+4.3. Rolling Back
+-----------------
 
-See what has been applied:
+Rollback the last applied migration:
 
-```bash
-mg status
-mg list
-```
+    mg down
 
-Verify integrity (checksums):
+Rollback multiple steps:
 
-```bash
-mg verify
-```
+    mg rollback 3
 
-### 6. Rollback
+4.4. Status and Verification
+----------------------------
 
-Rollback the last migration:
+View the status of all migrations:
 
-```bash
-mg down
-```
+    mg status
+    mg list
 
-## Logging
+Verify that applied migrations on disk match the database checksums:
 
-Enable verbose or JSON logging:
+    mg verify
 
-```bash
-mg apply --verbose
-mg apply --json-log
-```
+5. ADVANCED FEATURES
+--------------------
 
-## Audit Log
+5.1. Non-Transactional Migrations
+---------------------------------
 
-Migretti maintains an `_migrations_log` table in your database tracking all operations for auditing purposes.
+Certain operations, such as `CREATE INDEX CONCURRENTLY`, cannot run inside a transaction block. Use the `-- migrate: no-transaction` directive in your SQL file.
+
+    -- migrate: no-transaction
+    -- migrate: up
+    CREATE INDEX CONCURRENTLY idx_users ON users(name);
+
+If a non-transactional migration fails, Migretti records a "failed" status in the database. You must manually resolve the issue and then fix the migration state.
+
+5.2. Dry Run
+------------
+
+Preview the SQL to be executed without modifying the database:
+
+    mg apply --dry-run
+
+For transactional migrations, Migretti performs a "Smart Dry Run," executing the SQL inside a transaction that is immediately rolled back to ensure validity.
+
+5.3. Data Seeding
+-----------------
+
+Manage data seeding scripts in the `seeds/` directory.
+
+Create a seed file:
+
+    mg seed create initial_data
+
+Run all seeds:
+
+    mg seed
+
+5.4. Hooks
+----------
+
+Define shell commands to run before or after operations in `mg.yaml`:
+
+    hooks:
+      pre_apply: ./scripts/backup_db.sh
+      post_rollback: ./scripts/notify_team.sh
+
+Supported hooks: `pre_apply`, `post_apply`, `pre_rollback`, `post_rollback`.
+
+5.5. Migration Squashing
+------------------------
+
+Combine multiple pending migrations into a single file to maintain a clean history:
+
+    mg squash release_v1
+
+5.6. Production Safety
+----------------------
+
+When running against environments named `prod`, `production`, or `live`, Migretti requires interactive confirmation unless the `--yes` flag is provided.
+
+5.7. Concurrency Control
+------------------------
+
+Migretti uses PostgreSQL advisory locks to ensure that only one migration process runs simultaneously, preventing race conditions in distributed deployment environments.
+
+5.8. Logging
+------------
+
+For machine-readable output, use the JSON logging flag:
+
+    mg apply --json-log
+
+6. LICENSE
+----------
+
+This software is released under the MIT License.
