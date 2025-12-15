@@ -1,4 +1,6 @@
-def cmd_prompt(args):
+import argparse
+
+def cmd_prompt(args: argparse.Namespace) -> None:
     """Print instructions for AI agents."""
     prompt = """# Migretti - Database Migration Tool Guide
 

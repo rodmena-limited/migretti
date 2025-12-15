@@ -50,9 +50,7 @@ def test_smart_dry_run_failure(test_db, temp_project):
     Test: Smart Dry Run catches SQL errors without applying changes.
     """
     # Create invalid migration
-    import os
     import pytest
-    from migretti import __main__ as main_mod
     from migretti.core import apply_migrations, get_migration_status
 
     mig_id = "01KCCFAILDRY"

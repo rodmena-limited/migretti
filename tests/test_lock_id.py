@@ -1,5 +1,3 @@
-import pytest
-from migretti.config import load_config
 from migretti.db import get_lock_id
 
 

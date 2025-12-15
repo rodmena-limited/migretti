@@ -1,9 +1,10 @@
 import psycopg
 from contextlib import contextmanager
+from typing import Optional, Generator, Any
 from migretti.config import load_config
 
 
-def get_connection(env=None):
+def get_connection(env: Optional[str] = None) -> psycopg.Connection[Any]:
     config = load_config(env=env)
     db_config = config.get("database", {})
 
@@ -22,15 +23,16 @@ def get_connection(env=None):
     except psycopg.Error as e:
         raise RuntimeError(f"Database connection failed: {e}")
 
-
-def get_lock_id(env=None):
+def get_lock_id(env: Optional[str] = None) -> int:
     config = load_config(env=env)
     # Default: 894321
-    return config.get("lock_id", 894321)
-
+    val = config.get("lock_id", 894321)
+    if isinstance(val, int):
+        return val
+    return 894321
 
 @contextmanager
-def advisory_lock(conn, lock_id):
+def advisory_lock(conn: psycopg.Connection[Any], lock_id: int = 894321) -> Generator[None, None, None]: 
     """
     Acquire a transaction-level advisory lock.
     """
@@ -45,7 +47,7 @@ def advisory_lock(conn, lock_id):
         conn.commit()  # Ensure unlock is committed (though unlock is immediate usually)
 
 
-def ensure_schema(conn):
+def ensure_schema(conn: psycopg.Connection[Any]) -> None:
     """Ensure _migrations and _migrations_log tables exist."""
     with conn.cursor() as cur:
         # _migrations table

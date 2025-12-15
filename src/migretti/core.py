@@ -3,6 +3,7 @@ import glob
 import hashlib
 import psycopg
 import sqlparse
+from typing import Tuple, List, Set, Optional, Dict, Any
 from migretti.db import get_connection, ensure_schema, advisory_lock, get_lock_id
 from migretti.logging_setup import get_logger
 from migretti.hooks import execute_hook
@@ -10,7 +11,7 @@ from migretti.hooks import execute_hook
 logger = get_logger()
 
 
-def parse_migration_sql(content):
+def parse_migration_sql(content: str) -> Tuple[str, str, bool]:
     lines = content.splitlines()
     up_sql = []
     down_sql = []
@@ -37,11 +38,11 @@ def parse_migration_sql(content):
     return "\n".join(up_sql), "\n".join(down_sql), no_transaction
 
 
-def calculate_checksum(content):
+def calculate_checksum(content: str) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
-def get_migration_files():
+def get_migration_files() -> List[Tuple[str, str, str]]:
     """Returns list of (id, name, filepath) sorted by id."""
     if not os.path.exists("migrations"):
         return []
@@ -63,20 +64,20 @@ def get_migration_files():
     return migrations
 
 
-def get_applied_migrations(conn):
+def get_applied_migrations(conn: psycopg.Connection[Any]) -> Set[str]:
     with conn.cursor() as cur:
         # Only consider successfully applied migrations as "done"
         cur.execute("SELECT id FROM _migrations WHERE status = 'applied'")
         return {row[0] for row in cur.fetchall()}
 
 
-def check_failed_migrations(conn):
+def check_failed_migrations(conn: psycopg.Connection[Any]) -> List[Tuple[str, str]]:
     with conn.cursor() as cur:
         cur.execute("SELECT id, name FROM _migrations WHERE status = 'failed'")
         return cur.fetchall()
 
 
-def get_applied_migrations_details(conn):
+def get_applied_migrations_details(conn: psycopg.Connection[Any]) -> List[Tuple[str, str, str]]:
     """Returns list of (id, name, checksum) sorted by applied_at DESC, id DESC."""
     with conn.cursor() as cur:
         cur.execute(
@@ -85,7 +86,7 @@ def get_applied_migrations_details(conn):
         return cur.fetchall()
 
 
-def verify_checksums(env=None):
+def verify_checksums(env: Optional[str] = None) -> bool:
     """Verifies that applied migrations match files on disk."""
     conn = get_connection(env=env)
     try:
@@ -124,7 +125,7 @@ def verify_checksums(env=None):
         conn.close()
 
 
-def rollback_migrations(steps=1, env=None, dry_run=False):
+def rollback_migrations(steps: int = 1, env: Optional[str] = None, dry_run: bool = False) -> None:
     execute_hook("pre_rollback", env=env)
     conn = get_connection(env=env)
     lock_id = get_lock_id(env=env)
@@ -165,32 +166,24 @@ def rollback_migrations(steps=1, env=None, dry_run=False):
                 if dry_run:
                     logger.info(f"[DRY RUN] Rolling back {mig_id} - {name}")
                     logger.info(f"[DRY RUN] SQL:\n{down_sql}")
-
+                    
                     if not no_transaction:
                         try:
                             with conn.transaction():
                                 with conn.cursor() as cur:
-                                    logger.info(
-                                        f"[DRY RUN] Verifying Rollback SQL for {mig_id}..."
-                                    )
+                                    logger.info(f"[DRY RUN] Verifying Rollback SQL for {mig_id}...")
                                     if down_sql.strip():
                                         cur.execute(down_sql)
-                                    logger.info(
-                                        f"[DRY RUN] Verification successful. Rolling back changes."
-                                    )
+                                    logger.info("[DRY RUN] Verification successful. Rolling back changes.")
                                     raise psycopg.Rollback()
                         except psycopg.Rollback:
                             pass
                         except Exception as e:
-                            logger.error(
-                                f"[DRY RUN] Rollback SQL Verification FAILED: {e}"
-                            )
+                            logger.error(f"[DRY RUN] Rollback SQL Verification FAILED: {e}")
                             raise e
                     else:
-                        logger.info(
-                            f"[DRY RUN] Skipping verification for non-transactional migration."
-                        )
-
+                        logger.info("[DRY RUN] Skipping verification for non-transactional migration.")
+                        
                     continue
 
                 logger.info(f"Rolling back {mig_id} - {name}...")
@@ -263,7 +256,7 @@ def rollback_migrations(steps=1, env=None, dry_run=False):
         conn.close()
 
 
-def apply_migrations(limit=None, env=None, dry_run=False):
+def apply_migrations(limit: Optional[int] = None, env: Optional[str] = None, dry_run: bool = False) -> None:
     execute_hook("pre_apply", env=env)
     conn = get_connection(env=env)
     lock_id = get_lock_id(env=env)
@@ -313,31 +306,25 @@ def apply_migrations(limit=None, env=None, dry_run=False):
                 if dry_run:
                     logger.info(f"[DRY RUN] Applying {mig_id} - {name}")
                     logger.info(f"[DRY RUN] SQL:\n{up_sql}")
-
+                    
                     if not no_transaction:
                         try:
                             # Smart Dry Run: Execute inside a transaction that we explicitly rollback
                             with conn.transaction():
                                 with conn.cursor() as cur:
-                                    logger.info(
-                                        f"[DRY RUN] Verifying SQL execution for {mig_id}..."
-                                    )
+                                    logger.info(f"[DRY RUN] Verifying SQL execution for {mig_id}...")
                                     if up_sql.strip():
                                         cur.execute(up_sql)
-                                    logger.info(
-                                        f"[DRY RUN] Verification successful. Rolling back changes."
-                                    )
-                                    raise psycopg.Rollback()  # Force rollback
+                                    logger.info("[DRY RUN] Verification successful. Rolling back changes.")
+                                    raise psycopg.Rollback() # Force rollback
                         except psycopg.Rollback:
-                            pass  # Expected
+                            pass # Expected
                         except Exception as e:
                             logger.error(f"[DRY RUN] SQL Verification FAILED: {e}")
                             raise e
                     else:
-                        logger.info(
-                            f"[DRY RUN] Skipping verification for non-transactional migration."
-                        )
-
+                        logger.info("[DRY RUN] Skipping verification for non-transactional migration.")
+                        
                     continue
 
                 logger.info(f"Applying {mig_id} - {name}...")
@@ -367,7 +354,7 @@ def apply_migrations(limit=None, env=None, dry_run=False):
                                             # Mark as failed in DB
                                             # We need to reconnect or use a separate connection/transaction if the error invalidated the state
                                             # But for non-transactional, the connection might be okay?
-                                            # Actually, creating a new cursor for metadata update is safer.H
+                                            # Actually, creating a new cursor for metadata update is safer.
                                             logger.error(
                                                 f"Statement failed: {stmt_err}"
                                             )
@@ -440,7 +427,7 @@ def apply_migrations(limit=None, env=None, dry_run=False):
         conn.close()
 
 
-def get_migration_status(env=None):
+def get_migration_status(env: Optional[str] = None) -> List[Dict[str, str]]:
     conn = get_connection(env=env)
     try:
         ensure_schema(conn)
@@ -465,7 +452,7 @@ def get_migration_status(env=None):
         conn.close()
 
 
-def get_head(env=None):
+def get_head(env: Optional[str] = None) -> Optional[Dict[str, Any]]:
     conn = get_connection(env=env)
     try:
         ensure_schema(conn)

@@ -1,4 +1,3 @@
-import pytest
 from migretti.config import load_config
 
 

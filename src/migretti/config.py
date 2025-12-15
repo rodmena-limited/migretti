@@ -18,6 +18,7 @@ def load_config(env: Optional[str] = None) -> Dict[str, Any]:
     3. mg.yaml (default/root)
     """
 
+    # Load from file
     file_config: Dict[str, Any] = {}
     if os.path.exists(CONFIG_FILENAME):
         try:
@@ -30,24 +31,40 @@ def load_config(env: Optional[str] = None) -> Dict[str, Any]:
             raise RuntimeError(f"Error parsing {CONFIG_FILENAME}: {e}")
 
     # Resolve environment profile
+    # If env is not passed, check MG_ENV, default to 'default' or root
     target_env = env or os.getenv("MG_ENV", "default")
 
-    final_config: Dict[str, Any] = {"database": {}}
+    final_db_config: Dict[str, Any] = {}
 
-    # 1. Base Config
-    if "database" in file_config:
-        final_config["database"] = file_config["database"]
-
-    # 2. Env Profile Config
-    if "envs" in file_config and target_env in file_config["envs"]:
+    if "envs" in file_config and isinstance(file_config["envs"], dict) and target_env in file_config["envs"]:
+        # Use profile specific config
         env_config = file_config["envs"][target_env]
-        if "database" in env_config:
-            final_config["database"] = env_config["database"]
-        # Allow overriding lock_id per env
-        if "lock_id" in env_config:
-            final_config["lock_id"] = env_config["lock_id"]
+        if isinstance(env_config, dict):
+            final_db_config = env_config.get("database", {})
+    elif "database" in file_config and isinstance(file_config["database"], dict):
+        # Use root config (legacy support or simple setup)
+        final_db_config = file_config["database"]
 
-    # 3. Global Config (if not set by env)
+    # Override with specific env vars if set (e.g. MG_DB_HOST)
+    if os.getenv("MG_DB_HOST"):
+        final_db_config["host"] = os.getenv("MG_DB_HOST")
+    if os.getenv("MG_DB_PORT"):
+        final_db_config["port"] = os.getenv("MG_DB_PORT")
+    if os.getenv("MG_DB_USER"):
+        final_db_config["user"] = os.getenv("MG_DB_USER")
+    if os.getenv("MG_DB_PASSWORD"):
+        final_db_config["password"] = os.getenv("MG_DB_PASSWORD")
+    if os.getenv("MG_DB_NAME"):
+        final_db_config["dbname"] = os.getenv("MG_DB_NAME")
+
+    final_config: Dict[str, Any] = {"database": final_db_config}
+
+    # Lock ID handling
+    if "envs" in file_config and isinstance(file_config["envs"], dict) and target_env in file_config["envs"]:
+         env_config = file_config["envs"][target_env]
+         if isinstance(env_config, dict) and "lock_id" in env_config:
+             final_config["lock_id"] = env_config["lock_id"]
+             
     if "lock_id" not in final_config and "lock_id" in file_config:
         final_config["lock_id"] = file_config["lock_id"]
 
@@ -55,27 +72,16 @@ def load_config(env: Optional[str] = None) -> Dict[str, Any]:
     if "hooks" in file_config:
         final_config["hooks"] = file_config["hooks"]
 
-    # 4. Environment Variables Overrides
-    db_url = os.getenv("MG_DATABASE_URL")
-    if db_url:
-        final_config["database"]["conninfo"] = db_url
-
-    if os.getenv("MG_DB_HOST"):
-        final_config["database"]["host"] = os.getenv("MG_DB_HOST")
-    if os.getenv("MG_DB_PORT"):
-        final_config["database"]["port"] = os.getenv("MG_DB_PORT")
-    if os.getenv("MG_DB_USER"):
-        final_config["database"]["user"] = os.getenv("MG_DB_USER")
-    if os.getenv("MG_DB_PASSWORD"):
-        final_config["database"]["password"] = os.getenv("MG_DB_PASSWORD")
-    if os.getenv("MG_DB_NAME"):
-        final_config["database"]["dbname"] = os.getenv("MG_DB_NAME")
-
     # Lock ID via Env Var
     if os.getenv("MG_LOCK_ID"):
         try:
             final_config["lock_id"] = int(os.getenv("MG_LOCK_ID", ""))
         except ValueError:
-            pass  # Ignore invalid
+            pass # Ignore invalid
+
+    # Database URL Override
+    db_url = os.getenv("MG_DATABASE_URL")
+    if db_url:
+        final_config["database"]["conninfo"] = db_url
 
     return final_config
