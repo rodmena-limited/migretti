@@ -1,0 +1,52 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "migretti"
+version = "0.9.4"
+description = "A database migration tool for Python applications."
+readme = "README.md"
+requires-python = ">=3.8"
+license = {file = "LICENSE"}
+authors = [
+  {name = "Farshid", email = "farshid@example.com"},
+]
+keywords = ["database", "migration", "sql"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: OS Independent",
+]
+dependencies = [
+  "psycopg[binary]",
+  "pyyaml",
+  "python-dotenv",
+  "sqlparse",
+]
+
+[project.urls]
+Homepage = "https://github.com/rodmena-limited/migretti"
+Repository = "https://github.com/rodmena-limited/migretti"
+Issues = "https://github.com/rodmena-limited/migretti/issues"
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "pytest-cov",
+  "ruff",
+  "mypy",
+  "issuedb",
+  "build",
+  "types-pyyaml",
+  "types-psycopg2",
+]
+
+[project.scripts]
+migretti = "migretti.__main__:main"
+mg = "migretti.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/migretti"]
