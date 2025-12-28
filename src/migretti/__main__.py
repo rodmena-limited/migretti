@@ -174,3 +174,15 @@ def cmd_head(args: argparse.Namespace) -> None:
     except Exception as e:
         logger.error(f"Error getting head: {e}")
         sys.exit(1)
+
+def cmd_verify(args: argparse.Namespace) -> None:
+    """Verify applied migrations checksums."""
+    try:
+        if verify_checksums(env=args.env):
+            print("Verification Successful: All applied migrations match.")
+        else:
+            print("Verification Failed: Checksum mismatches found. Check logs.")
+            sys.exit(1)
+    except Exception as e:
+        logger.error(f"Error verifying checksums: {e}")
+        sys.exit(1)
