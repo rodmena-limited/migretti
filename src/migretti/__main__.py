@@ -144,3 +144,19 @@ def cmd_status(args: argparse.Namespace) -> None:
     except Exception as e:
         logger.error(f"Error getting status: {e}")
         sys.exit(1)
+
+def cmd_list(args: argparse.Namespace) -> None:
+    """List all migrations."""
+    try:
+        status_list = get_migration_status(env=args.env)
+        if not status_list:
+            print("No migrations found.")
+            return
+
+        print(f"{'ID':<26} | {'Status':<10} | {'Name'}")
+        print("-" * 60)
+        for item in status_list:
+            print(f"{item['id']:<26} | {item['status']:<10} | {item['name']}")
+    except Exception as e:
+        logger.error(f"Error listing migrations: {e}")
+        sys.exit(1)
