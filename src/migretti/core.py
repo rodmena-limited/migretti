@@ -136,3 +136,143 @@ def verify_checksums(env: Optional[str] = None) -> bool:
         return True
     finally:
         conn.close()
+
+def rollback_migrations(
+    steps: int = 1, env: Optional[str] = None, dry_run: bool = False
+) -> None:
+    execute_hook("pre_rollback", env=env)
+    conn = get_connection(env=env)
+    lock_id = get_lock_id(env=env)
+    try:
+        with advisory_lock(conn, lock_id=lock_id):
+            ensure_schema(conn)
+
+            applied = get_applied_migrations_details(conn)
+            if not applied:
+                logger.info("No migrations to rollback.")
+                return
+
+            to_rollback = applied[:steps]
+            logger.info(f"Rolling back {len(to_rollback)} migrations.")
+
+            # Need to map ID to filepath
+            all_migrations_files = get_migration_files()  # [(id, name, path)]
+            id_to_path = {m[0]: m[2] for m in all_migrations_files}
+
+            for mig_id, name, _ in to_rollback:
+                filepath = id_to_path.get(mig_id)
+                if not filepath:
+                    logger.warning(
+                        f"Migration file for {mig_id} ({name}) not found. Cannot rollback SQL."
+                    )
+                    raise RuntimeError(f"File for migration {mig_id} not found.")
+
+                try:
+                    with open(filepath, "r", encoding="utf-8") as f:
+                        content = f.read()
+                except OSError as e:
+                    logger.error(f"Error reading {filepath}: {e}")
+                    raise
+
+                _, down_sql, no_transaction = parse_migration_sql(content, filepath)
+                checksum = calculate_checksum(content)
+
+                if dry_run:
+                    logger.info(f"[DRY RUN] Rolling back {mig_id} - {name}")
+                    logger.info(f"[DRY RUN] SQL:\n{down_sql}")
+
+                    if not no_transaction:
+                        try:
+                            with conn.transaction():
+                                with conn.cursor() as cur:
+                                    logger.info(
+                                        f"[DRY RUN] Verifying Rollback SQL for {mig_id}..."
+                                    )
+                                    if down_sql.strip():
+                                        cur.execute(down_sql)
+                                    logger.info(
+                                        "[DRY RUN] Verification successful. Rolling back changes."
+                                    )
+                                    raise psycopg.Rollback()
+                        except psycopg.Rollback:
+                            pass
+                        except Exception as e:
+                            logger.error(
+                                f"[DRY RUN] Rollback SQL Verification FAILED: {e}"
+                            )
+                            raise e
+                    else:
+                        logger.info(
+                            "[DRY RUN] Skipping verification for non-transactional migration."
+                        )
+
+                    continue
+
+                logger.info(f"Rolling back {mig_id} - {name}...")
+
+                try:
+                    # If no_transaction is set, we must execute outside of a transaction block
+                    if no_transaction:
+                        if (
+                            conn.info.transaction_status
+                            != psycopg.pq.TransactionStatus.IDLE
+                        ):
+                            logger.warning(
+                                f"Connection in state {conn.info.transaction_status} before switching to autocommit. Rolling back."
+                            )
+                            conn.rollback()
+
+                        conn.autocommit = True
+                        with conn.cursor() as cur:
+                            if down_sql.strip():
+                                statements = sqlparse.split(down_sql)
+                                for stmt in statements:
+                                    if stmt.strip():
+                                        cur.execute(stmt)
+
+                            cur.execute(
+                                "DELETE FROM _migrations WHERE id = %s", (mig_id,)
+                            )
+
+                            try:
+                                user = os.getlogin()
+                            except OSError:
+                                user = "system"
+
+                            cur.execute(
+                                """
+                                INSERT INTO _migrations_log (migration_id, name, action, performed_by, checksum)
+                                VALUES (%s, %s, 'DOWN', %s, %s)
+                            """,
+                                (mig_id, name, user, checksum),
+                            )
+                        conn.autocommit = False  # Reset
+                    else:
+                        with conn.transaction():
+                            with conn.cursor() as cur:
+                                if down_sql.strip():
+                                    cur.execute(down_sql)
+
+                                cur.execute(
+                                    "DELETE FROM _migrations WHERE id = %s", (mig_id,)
+                                )
+
+                                try:
+                                    user = os.getlogin()
+                                except OSError:
+                                    user = "system"
+
+                                cur.execute(
+                                    """
+                                    INSERT INTO _migrations_log (migration_id, name, action, performed_by, checksum)
+                                    VALUES (%s, %s, 'DOWN', %s, %s)
+                                """,
+                                    (mig_id, name, user, checksum),
+                                )
+                    logger.info(f"Rolled back {mig_id}.")
+                except Exception as e:
+                    logger.error(f"Failed to rollback {mig_id}: {e}")
+                    raise e
+        execute_hook("post_rollback", env=env)
+    finally:
+        conn.close()
