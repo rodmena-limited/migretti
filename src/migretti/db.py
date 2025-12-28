@@ -29,3 +29,19 @@ def get_lock_id(env: Optional[str] = None) -> int:
     if isinstance(val, int):
         return val
     return 894321
+
+def advisory_lock(
+    conn: psycopg.Connection[Any], lock_id: int = 894321
+) -> Generator[None, None, None]:
+    """
+    Acquire a transaction-level advisory lock.
+    """
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT pg_advisory_lock(%s)", (lock_id,))
+        conn.commit()  # Ensure we are not in a transaction
+        yield
+    finally:
+        with conn.cursor() as cur:
+            cur.execute("SELECT pg_advisory_unlock(%s)", (lock_id,))
+        conn.commit()  # Ensure unlock is committed (though unlock is immediate usually)
