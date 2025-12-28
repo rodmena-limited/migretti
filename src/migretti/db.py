@@ -21,3 +21,11 @@ def get_connection(env: Optional[str] = None) -> psycopg.Connection[Any]:
         return conn
     except psycopg.Error as e:
         raise RuntimeError(f"Database connection failed: {e}")
+
+def get_lock_id(env: Optional[str] = None) -> int:
+    config = load_config(env=env)
+    # Default: 894321
+    val = config.get("lock_id", 894321)
+    if isinstance(val, int):
+        return val
+    return 894321
