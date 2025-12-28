@@ -98,3 +98,41 @@ def get_applied_migrations_details(
             "SELECT id, name, checksum FROM _migrations WHERE status = 'applied' ORDER BY applied_at DESC, id DESC"
         )
         return cur.fetchall()
+
+def verify_checksums(env: Optional[str] = None) -> bool:
+    """Verifies that applied migrations match files on disk."""
+    conn = get_connection(env=env)
+    try:
+        ensure_schema(conn)
+        applied = get_applied_migrations_details(conn)
+        # Map ID -> Checksum
+        applied_map = {m[0]: m[2] for m in applied}
+
+        all_migrations = get_migration_files()
+
+        issues = []
+
+        for mig_id, name, filepath in all_migrations:
+            if mig_id in applied_map:
+                try:
+                    with open(filepath, "r", encoding="utf-8") as f:
+                        content = f.read()
+                except OSError as e:
+                    issues.append(f"Error reading {filepath}: {e}")
+                    continue
+
+                current_checksum = calculate_checksum(content)
+                stored_checksum = applied_map[mig_id]
+
+                if current_checksum != stored_checksum:
+                    issues.append(f"Checksum mismatch for {mig_id} ({name})")
+
+        if issues:
+            for issue in issues:
+                logger.error(issue)
+            return False
+
+        logger.info("All applied migrations match files on disk.")
+        return True
+    finally:
+        conn.close()
