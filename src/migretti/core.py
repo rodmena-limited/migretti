@@ -454,3 +454,27 @@ def apply_migrations(
         execute_hook("post_apply", env=env)
     finally:
         conn.close()
+
+def get_migration_status(env: Optional[str] = None) -> List[Dict[str, str]]:
+    conn = get_connection(env=env)
+    try:
+        ensure_schema(conn)
+
+        # Get all entries from DB including failed
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, status FROM _migrations")
+            db_status = {row[0]: row[1] for row in cur.fetchall()}
+
+        all_migrations = get_migration_files()  # [(id, name, path)]
+
+        status_list = []
+        for mig_id, name, _ in all_migrations:
+            if mig_id in db_status:
+                status = db_status[mig_id]
+            else:
+                status = "pending"
+
+            status_list.append({"id": mig_id, "name": name, "status": status})
+        return status_list
+    finally:
+        conn.close()
