@@ -53,3 +53,6 @@ def parse_migration_sql(
         logger.warning(f"Migration {filepath} has no '-- migrate: down' section")
 
     return up_sql_str, down_sql_str, no_transaction
+
+def calculate_checksum(content: str) -> str:
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
