@@ -80,3 +80,34 @@ envs:
         print("Created migrations/ directory")
     else:
         print("migrations/ directory already exists")
+
+def cmd_create(args: argparse.Namespace) -> None:
+    """Create a new migration script."""
+    name = args.name
+    # Sanitize name
+    slug = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+
+    migration_id = str(ULID())
+    filename = f"{migration_id}_{slug}.sql"
+    filepath = os.path.join("migrations", filename)
+
+    if not os.path.exists("migrations"):
+        logger.error("migrations directory not found. Run 'mg init' first.")
+        sys.exit(1)
+
+    template = """-- migration: {name}
+-- id: {id}
+
+-- migrate: up
+
+
+-- migrate: down
+
+"""
+    try:
+        with atomic_write(filepath, exclusive=True) as f:
+            f.write(template.format(name=name, id=migration_id))
+        print(f"Created {filepath}")
+    except Exception as e:
+        logger.error(f"Failed to create migration file: {e}")
+        sys.exit(1)
