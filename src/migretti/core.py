@@ -56,3 +56,24 @@ def parse_migration_sql(
 
 def calculate_checksum(content: str) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+def get_migration_files() -> List[Tuple[str, str, str]]:
+    """Returns list of (id, name, filepath) sorted by id."""
+    if not os.path.exists("migrations"):
+        return []
+
+    files = glob.glob(os.path.join("migrations", "*.sql"))
+    migrations = []
+    for f in files:
+        basename = os.path.basename(f)
+        # format: <id>_<slug>.sql
+        parts = basename.split("_", 1)
+        if len(parts) < 2:
+            continue  # Skip invalid files
+        mig_id = parts[0]
+        # remove .sql from name
+        name = parts[1][:-4] if parts[1].endswith(".sql") else parts[1]
+        migrations.append((mig_id, name, f))
+
+    migrations.sort(key=lambda x: x[0])
+    return migrations
