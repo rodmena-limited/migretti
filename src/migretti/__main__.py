@@ -131,3 +131,16 @@ def cmd_down(args: argparse.Namespace) -> None:
     """Rollback the last applied migration."""
     check_prod_protection(args)
     rollback_migrations(steps=1, env=args.env, dry_run=args.dry_run)
+
+def cmd_status(args: argparse.Namespace) -> None:
+    """Show migration status."""
+    try:
+        status_list = get_migration_status(env=args.env)
+        applied = sum(1 for s in status_list if s["status"] == "applied")
+        pending = sum(1 for s in status_list if s["status"] == "pending")
+        print(f"Total migrations: {len(status_list)}")
+        print(f"Applied: {applied}")
+        print(f"Pending: {pending}")
+    except Exception as e:
+        logger.error(f"Error getting status: {e}")
+        sys.exit(1)
