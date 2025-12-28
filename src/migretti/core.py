@@ -83,3 +83,8 @@ def get_applied_migrations(conn: psycopg.Connection[Any]) -> Set[str]:
         # Only consider successfully applied migrations as "done"
         cur.execute("SELECT id FROM _migrations WHERE status = 'applied'")
         return {row[0] for row in cur.fetchall()}
+
+def check_failed_migrations(conn: psycopg.Connection[Any]) -> List[Tuple[str, str]]:
+    with conn.cursor() as cur:
+        cur.execute("SELECT id, name FROM _migrations WHERE status = 'failed'")
+        return cur.fetchall()
