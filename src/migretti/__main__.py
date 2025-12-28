@@ -160,3 +160,17 @@ def cmd_list(args: argparse.Namespace) -> None:
     except Exception as e:
         logger.error(f"Error listing migrations: {e}")
         sys.exit(1)
+
+def cmd_head(args: argparse.Namespace) -> None:
+    """Show current schema version."""
+    try:
+        head = get_head(env=args.env)
+        if head:
+            print(f"Current Head: {head['id']}")
+            print(f"Name: {head['name']}")
+            print(f"Applied At: {head['applied_at']}")
+        else:
+            print("No migrations applied.")
+    except Exception as e:
+        logger.error(f"Error getting head: {e}")
+        sys.exit(1)
