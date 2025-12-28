@@ -34,3 +34,49 @@ def check_prod_protection(args: argparse.Namespace) -> None:
             if response.lower() != "yes":
                 print("Operation cancelled.")
                 sys.exit(0)
+
+def cmd_init(args: argparse.Namespace) -> None:
+    """Initialize a new migration project."""
+    if os.path.exists(CONFIG_FILENAME):
+        logger.error(f"{CONFIG_FILENAME} already exists.")
+        return
+
+    # Create mg.yaml
+    default_config = """database:
+  host: localhost
+  port: 5432
+  user: postgres
+  password: password
+  dbname: my_database
+
+envs:
+  dev:
+    database:
+      host: localhost
+      port: 5432
+      user: postgres
+      password: password
+      dbname: my_app_dev
+  prod:
+    database:
+      host: db.prod.example.com
+      port: 5432
+      user: dbuser
+      password: securepassword
+      dbname: my_app_prod
+"""
+    try:
+        with atomic_write(CONFIG_FILENAME, exclusive=True) as f:
+            f.write(default_config)
+        print(f"Created {CONFIG_FILENAME}")
+    except FileExistsError:
+        logger.error(f"{CONFIG_FILENAME} already exists.")
+    except Exception as e:
+        logger.error(f"Failed to create config: {e}")
+
+    # Create migrations directory
+    if not os.path.exists("migrations"):
+        os.makedirs("migrations")
+        print("Created migrations/ directory")
+    else:
+        print("migrations/ directory already exists")
