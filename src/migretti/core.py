@@ -88,3 +88,13 @@ def check_failed_migrations(conn: psycopg.Connection[Any]) -> List[Tuple[str, st
     with conn.cursor() as cur:
         cur.execute("SELECT id, name FROM _migrations WHERE status = 'failed'")
         return cur.fetchall()
+
+def get_applied_migrations_details(
+    conn: psycopg.Connection[Any],
+) -> List[Tuple[str, str, str]]:
+    """Returns list of (id, name, checksum) sorted by applied_at DESC, id DESC."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT id, name, checksum FROM _migrations WHERE status = 'applied' ORDER BY applied_at DESC, id DESC"
+        )
+        return cur.fetchall()
