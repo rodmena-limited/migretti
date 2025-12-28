@@ -77,3 +77,9 @@ def get_migration_files() -> List[Tuple[str, str, str]]:
 
     migrations.sort(key=lambda x: x[0])
     return migrations
+
+def get_applied_migrations(conn: psycopg.Connection[Any]) -> Set[str]:
+    with conn.cursor() as cur:
+        # Only consider successfully applied migrations as "done"
+        cur.execute("SELECT id FROM _migrations WHERE status = 'applied'")
+        return {row[0] for row in cur.fetchall()}
