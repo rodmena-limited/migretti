@@ -116,3 +116,8 @@ def cmd_apply(args: argparse.Namespace) -> None:
     """Apply all pending migrations."""
     check_prod_protection(args)
     apply_migrations(env=args.env, dry_run=args.dry_run)
+
+def cmd_rollback(args: argparse.Namespace) -> None:
+    """Rollback migrations."""
+    check_prod_protection(args)
+    rollback_migrations(steps=args.steps, env=args.env, dry_run=args.dry_run)
