@@ -111,3 +111,8 @@ def cmd_create(args: argparse.Namespace) -> None:
     except Exception as e:
         logger.error(f"Failed to create migration file: {e}")
         sys.exit(1)
+
+def cmd_apply(args: argparse.Namespace) -> None:
+    """Apply all pending migrations."""
+    check_prod_protection(args)
+    apply_migrations(env=args.env, dry_run=args.dry_run)
