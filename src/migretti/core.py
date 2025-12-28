@@ -276,3 +276,181 @@ def rollback_migrations(
         execute_hook("post_rollback", env=env)
     finally:
         conn.close()
+
+def apply_migrations(
+    limit: Optional[int] = None, env: Optional[str] = None, dry_run: bool = False
+) -> None:
+    execute_hook("pre_apply", env=env)
+    conn = get_connection(env=env)
+    lock_id = get_lock_id(env=env)
+    try:
+        with advisory_lock(conn, lock_id=lock_id):
+            ensure_schema(conn)
+
+            # Check for dirty state
+            failed = check_failed_migrations(conn)
+            if failed:
+                logger.error("❌ Database is in a DIRTY STATE.")
+                logger.error("The following migrations failed partially:")
+                for fid, fname in failed:
+                    logger.error(f"  - {fid} ({fname})")
+                logger.error(
+                    "Please manually fix the database state and then run 'mg fix <id>' (to mark as applied) or remove the entry from _migrations if you rolled back manually."
+                )
+                raise RuntimeError("Dirty database state.")
+
+            applied_ids = get_applied_migrations(conn)
+            all_migrations = get_migration_files()
+
+            pending = [m for m in all_migrations if m[0] not in applied_ids]
+
+            if not pending:
+                logger.info("No pending migrations.")
+                return
+
+            if limit:
+                pending = pending[:limit]
+
+            logger.info(
+                f"Found {len(pending)} pending migrations (applying {len(pending)})."
+            )
+
+            for mig_id, name, filepath in pending:
+                try:
+                    with open(filepath, "r", encoding="utf-8") as f:
+                        content = f.read()
+                except OSError as e:
+                    logger.error(f"Error reading {filepath}: {e}")
+                    raise
+
+                up_sql, _, no_transaction = parse_migration_sql(content, filepath)
+                checksum = calculate_checksum(content)
+
+                if dry_run:
+                    logger.info(f"[DRY RUN] Applying {mig_id} - {name}")
+                    logger.info(f"[DRY RUN] SQL:\n{up_sql}")
+
+                    if not no_transaction:
+                        try:
+                            # Smart Dry Run: Execute inside a transaction that we explicitly rollback
+                            with conn.transaction():
+                                with conn.cursor() as cur:
+                                    logger.info(
+                                        f"[DRY RUN] Verifying SQL execution for {mig_id}..."
+                                    )
+                                    if up_sql.strip():
+                                        cur.execute(up_sql)
+                                    logger.info(
+                                        "[DRY RUN] Verification successful. Rolling back changes."
+                                    )
+                                    raise psycopg.Rollback()  # Force rollback
+                        except psycopg.Rollback:
+                            pass  # Expected
+                        except Exception as e:
+                            logger.error(f"[DRY RUN] SQL Verification FAILED: {e}")
+                            raise e
+                    else:
+                        logger.info(
+                            "[DRY RUN] Skipping verification for non-transactional migration."
+                        )
+
+                    continue
+
+                logger.info(f"Applying {mig_id} - {name}...")
+
+                try:
+                    if no_transaction:
+                        # Ensure we are not in a transaction before switching autocommit
+                        if (
+                            conn.info.transaction_status
+                            != psycopg.pq.TransactionStatus.IDLE
+                        ):
+                            logger.warning(
+                                f"Connection in state {conn.info.transaction_status} before switching to autocommit. Rolling back."
+                            )
+                            conn.rollback()
+
+                        conn.autocommit = True
+                        with conn.cursor() as cur:
+                            if up_sql.strip():
+                                # Split statements for non-transactional execution
+                                statements = sqlparse.split(up_sql)
+                                for stmt in statements:
+                                    if stmt.strip():
+                                        try:
+                                            cur.execute(stmt)
+                                        except Exception as stmt_err:
+                                            # Mark as failed in DB
+                                            # We need to reconnect or use a separate connection/transaction if the error invalidated the state
+                                            # But for non-transactional, the connection might be okay?
+                                            # Actually, creating a new cursor for metadata update is safer.
+                                            logger.error(
+                                                f"Statement failed: {stmt_err}"
+                                            )
+
+                                            cur.execute(
+                                                """
+                                                INSERT INTO _migrations (id, name, checksum, status)
+                                                VALUES (%s, %s, %s, 'failed')
+                                                ON CONFLICT (id) DO UPDATE SET status = 'failed', applied_at = NOW()
+                                            """,
+                                                (mig_id, name, checksum),
+                                            )
+
+                                            raise stmt_err
+
+                            cur.execute(
+                                """
+                                INSERT INTO _migrations (id, name, checksum, status)
+                                VALUES (%s, %s, %s, 'applied')
+                                ON CONFLICT (id) DO UPDATE SET status = 'applied', checksum = EXCLUDED.checksum, applied_at = NOW()
+                            """,
+                                (mig_id, name, checksum),
+                            )
+
+                            try:
+                                user = os.getlogin()
+                            except OSError:
+                                user = "system"
+
+                            cur.execute(
+                                """
+                                INSERT INTO _migrations_log (migration_id, name, action, performed_by, checksum)
+                                VALUES (%s, %s, 'UP', %s, %s)
+                            """,
+                                (mig_id, name, user, checksum),
+                            )
+                        conn.autocommit = False  # Reset
+                    else:
+                        with conn.transaction():
+                            with conn.cursor() as cur:
+                                if up_sql.strip():
+                                    cur.execute(up_sql)
+
+                                cur.execute(
+                                    """
+                                    INSERT INTO _migrations (id, name, checksum)
+                                    VALUES (%s, %s, %s)
+                                """,
+                                    (mig_id, name, checksum),
+                                )
+
+                                try:
+                                    user = os.getlogin()
+                                except OSError:
+                                    user = "system"
+
+                                cur.execute(
+                                    """
+                                    INSERT INTO _migrations_log (migration_id, name, action, performed_by, checksum)
+                                    VALUES (%s, %s, 'UP', %s, %s)
+                                """,
+                                    (mig_id, name, user, checksum),
+                                )
+                    logger.info(f"Applied {mig_id}.")
+                except Exception as e:
+                    logger.error(f"Failed to apply {mig_id}: {e}")
+                    raise e
+        execute_hook("post_apply", env=env)
+    finally:
+        conn.close()
