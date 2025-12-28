@@ -7,7 +7,9 @@ from typing import Tuple, List, Set, Optional, Dict, Any
 from migretti.db import get_connection, ensure_schema, advisory_lock, get_lock_id
 from migretti.logging_setup import get_logger
 from migretti.hooks import execute_hook
+
 logger = get_logger()
+
 
 def parse_migration_sql(
     content: str, filepath: str = "<unknown>"
@@ -54,8 +56,10 @@ def parse_migration_sql(
 
     return up_sql_str, down_sql_str, no_transaction
 
+
 def calculate_checksum(content: str) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
 
 def get_migration_files() -> List[Tuple[str, str, str]]:
     """Returns list of (id, name, filepath) sorted by id."""
@@ -78,16 +82,19 @@ def get_migration_files() -> List[Tuple[str, str, str]]:
     migrations.sort(key=lambda x: x[0])
     return migrations
 
+
 def get_applied_migrations(conn: psycopg.Connection[Any]) -> Set[str]:
     with conn.cursor() as cur:
         # Only consider successfully applied migrations as "done"
         cur.execute("SELECT id FROM _migrations WHERE status = 'applied'")
         return {row[0] for row in cur.fetchall()}
 
+
 def check_failed_migrations(conn: psycopg.Connection[Any]) -> List[Tuple[str, str]]:
     with conn.cursor() as cur:
         cur.execute("SELECT id, name FROM _migrations WHERE status = 'failed'")
         return cur.fetchall()
+
 
 def get_applied_migrations_details(
     conn: psycopg.Connection[Any],
@@ -98,6 +105,7 @@ def get_applied_migrations_details(
             "SELECT id, name, checksum FROM _migrations WHERE status = 'applied' ORDER BY applied_at DESC, id DESC"
         )
         return cur.fetchall()
+
 
 def verify_checksums(env: Optional[str] = None) -> bool:
     """Verifies that applied migrations match files on disk."""
@@ -136,6 +144,7 @@ def verify_checksums(env: Optional[str] = None) -> bool:
         return True
     finally:
         conn.close()
+
 
 def rollback_migrations(
     steps: int = 1, env: Optional[str] = None, dry_run: bool = False
@@ -276,6 +285,7 @@ def rollback_migrations(
         execute_hook("post_rollback", env=env)
     finally:
         conn.close()
+
 
 def apply_migrations(
     limit: Optional[int] = None, env: Optional[str] = None, dry_run: bool = False
@@ -455,6 +465,7 @@ def apply_migrations(
     finally:
         conn.close()
 
+
 def get_migration_status(env: Optional[str] = None) -> List[Dict[str, str]]:
     conn = get_connection(env=env)
     try:
@@ -476,5 +487,21 @@ def get_migration_status(env: Optional[str] = None) -> List[Dict[str, str]]:
 
             status_list.append({"id": mig_id, "name": name, "status": status})
         return status_list
+    finally:
+        conn.close()
+
+
+def get_head(env: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    conn = get_connection(env=env)
+    try:
+        ensure_schema(conn)
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, name, applied_at FROM _migrations ORDER BY applied_at DESC, id DESC LIMIT 1"
+            )
+            row = cur.fetchone()
+            if row:
+                return {"id": row[0], "name": row[1], "applied_at": row[2]}
+            return None
     finally:
         conn.close()
