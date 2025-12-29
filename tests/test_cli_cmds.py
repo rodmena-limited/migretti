@@ -21,3 +21,13 @@ def test_cmd_list_no_args(capsys, monkeypatch):
     cmd_list(Args())
     captured = capsys.readouterr()
     assert "No migrations found" in captured.out
+
+def test_cmd_head_no_args(capsys, monkeypatch):
+    class Args:
+        env = None
+
+    monkeypatch.setattr("migretti.__main__.get_head", lambda env=None: None)
+
+    cmd_head(Args())
+    captured = capsys.readouterr()
+    assert "No migrations applied" in captured.out
