@@ -14,3 +14,4 @@ from migretti.core import (
 from migretti.db import get_connection
 from migretti.logging_setup import setup_logging
 TEST_DB_NAME = "migretti_test"
+TEST_DB_URL = f"postgresql://postgres:postgres@localhost:5432/{TEST_DB_NAME}"
