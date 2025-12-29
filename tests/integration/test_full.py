@@ -111,3 +111,34 @@ def test_full_lifecycle(test_db, temp_project):
     status = get_migration_status()
     assert len(status) == 1
     assert status[0]["status"] == "pending"
+
+def test_non_transactional_migration(test_db, temp_project):
+    """
+    Test: -- migrate: no-transaction
+    Uses: 02_concurrent_index.sql
+    """
+    copy_asset("02_concurrent_index.sql")
+
+    # Apply
+    apply_migrations()
+
+    # Verify index exists
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT EXISTS (SELECT FROM pg_class WHERE relname = 'idx_test_conc')"
+        )
+        assert cur.fetchone()[0] is True
+    conn.close()
+
+    # Rollback
+    rollback_migrations()
+
+    # Verify gone
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT EXISTS (SELECT FROM pg_class WHERE relname = 'idx_test_conc')"
+        )
+        assert cur.fetchone()[0] is False
+    conn.close()
