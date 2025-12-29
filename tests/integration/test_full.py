@@ -67,3 +67,47 @@ def copy_asset(filename, dest_name=None):
     dst = os.path.join("migrations", dest_name)
     shutil.copy(src, dst)
     return dst
+
+def test_full_lifecycle(test_db, temp_project):
+    """
+    Test: Init -> Copy Static Migration -> Apply -> Verify -> Rollback
+    Uses: 01_create_users.sql
+    """
+    copy_asset("01_create_users.sql")
+
+    # 2. Apply
+    apply_migrations()
+
+    # Check DB
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users')"
+        )
+        assert cur.fetchone()[0] is True
+    conn.close()
+
+    # 3. Status
+    status = get_migration_status()
+    assert len(status) == 1
+    assert status[0]["status"] == "applied"
+
+    # 4. Verify Checksums
+    assert verify_checksums() is True
+
+    # 5. Rollback
+    rollback_migrations()
+
+    # Check DB
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users')"
+        )
+        assert cur.fetchone()[0] is False
+    conn.close()
+
+    # 6. Status
+    status = get_migration_status()
+    assert len(status) == 1
+    assert status[0]["status"] == "pending"
