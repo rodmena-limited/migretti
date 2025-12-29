@@ -142,3 +142,22 @@ def test_non_transactional_migration(test_db, temp_project):
         )
         assert cur.fetchone()[0] is False
     conn.close()
+
+def test_dry_run(test_db, temp_project, capsys):
+    """
+    Test: --dry-run does not apply changes
+    Uses: 07_dry_run.sql
+    """
+    copy_asset("07_dry_run.sql")
+
+    # Apply with dry_run
+    apply_migrations(dry_run=True)
+
+    # Check status - should be pending
+    status = get_migration_status()
+    assert status[0]["status"] == "pending"
+
+    # Apply real
+    apply_migrations()
+    status = get_migration_status()
+    assert status[0]["status"] == "applied"
