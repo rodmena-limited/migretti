@@ -39,3 +39,23 @@ def test_db():
     os.environ["MG_DATABASE_URL"] = TEST_DB_URL
     yield TEST_DB_URL
     del os.environ["MG_DATABASE_URL"]
+
+def temp_project():
+    """
+    Creates a temporary directory, sets it as CWD, and initializes migretti.
+    """
+    setup_logging(verbose=True)
+    old_cwd = os.getcwd()
+    tmp_dir = tempfile.mkdtemp()
+    os.chdir(tmp_dir)
+
+    # Init project
+    class Args:
+        pass
+
+    main_mod.cmd_init(Args())
+
+    yield tmp_dir
+
+    os.chdir(old_cwd)
+    shutil.rmtree(tmp_dir)
