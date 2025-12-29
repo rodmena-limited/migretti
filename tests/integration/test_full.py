@@ -13,12 +13,16 @@ from migretti.core import (
 )
 from migretti.db import get_connection
 from migretti.logging_setup import setup_logging
+
+# Test DB Config
 TEST_DB_NAME = "migretti_test"
 TEST_DB_URL = f"postgresql://postgres:postgres@localhost:5432/{TEST_DB_NAME}"
 ASSETS_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "test_assets", "migrations")
 )
 
+
+@pytest.fixture(scope="function")
 def test_db():
     """
     Sets up a clean test database environment.
@@ -40,6 +44,8 @@ def test_db():
     yield TEST_DB_URL
     del os.environ["MG_DATABASE_URL"]
 
+
+@pytest.fixture(scope="function")
 def temp_project():
     """
     Creates a temporary directory, sets it as CWD, and initializes migretti.
@@ -60,6 +66,7 @@ def temp_project():
     os.chdir(old_cwd)
     shutil.rmtree(tmp_dir)
 
+
 def copy_asset(filename, dest_name=None):
     src = os.path.join(ASSETS_DIR, filename)
     if dest_name is None:
@@ -67,6 +74,7 @@ def copy_asset(filename, dest_name=None):
     dst = os.path.join("migrations", dest_name)
     shutil.copy(src, dst)
     return dst
+
 
 def test_full_lifecycle(test_db, temp_project):
     """
@@ -112,6 +120,7 @@ def test_full_lifecycle(test_db, temp_project):
     assert len(status) == 1
     assert status[0]["status"] == "pending"
 
+
 def test_non_transactional_migration(test_db, temp_project):
     """
     Test: -- migrate: no-transaction
@@ -143,6 +152,7 @@ def test_non_transactional_migration(test_db, temp_project):
         assert cur.fetchone()[0] is False
     conn.close()
 
+
 def test_dry_run(test_db, temp_project, capsys):
     """
     Test: --dry-run does not apply changes
@@ -162,6 +172,7 @@ def test_dry_run(test_db, temp_project, capsys):
     status = get_migration_status()
     assert status[0]["status"] == "applied"
 
+
 def test_verify_checksum_failure(test_db, temp_project):
     """
     Test: Checksum mismatch detection
@@ -178,3 +189,31 @@ def test_verify_checksum_failure(test_db, temp_project):
         f.write("\n-- modified")
 
     assert verify_checksums() is False
+
+
+def test_prod_protection(test_db, temp_project, monkeypatch):
+    """
+    Test: Production environment requires confirmation
+    """
+    os.environ["MG_ENV"] = "prod"
+
+    def mock_exit(code):
+        if code != 0:
+            raise SystemExit(code)
+
+    monkeypatch.setattr(sys, "exit", mock_exit)
+    monkeypatch.setattr("builtins.input", lambda _: "no")
+
+    class Args:
+        env = "prod"
+        dry_run = False
+        yes = False
+        steps = 1
+
+    try:
+        main_mod.cmd_apply(Args())
+    except SystemExit as e:
+        assert e.code == 0
+
+    monkeypatch.setattr("builtins.input", lambda _: "yes")
+    main_mod.cmd_apply(Args())
