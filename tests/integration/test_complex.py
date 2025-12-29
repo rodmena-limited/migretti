@@ -53,3 +53,13 @@ def copy_asset(filename, dest_name=None):
     dst = os.path.join("migrations", dest_name)
     shutil.copy(src, dst)
     return dst
+
+def worker_apply():
+    os.environ["MG_DATABASE_URL"] = TEST_DB_URL
+    setup_logging(verbose=True)
+    try:
+        apply_migrations()
+        return True
+    except Exception as e:
+        print(f"Worker failed: {e}")
+        return False
