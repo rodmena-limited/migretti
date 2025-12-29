@@ -31,3 +31,13 @@ def test_cmd_head_no_args(capsys, monkeypatch):
     cmd_head(Args())
     captured = capsys.readouterr()
     assert "No migrations applied" in captured.out
+
+def test_cmd_verify_success(capsys, monkeypatch):
+    class Args:
+        env = None
+
+    monkeypatch.setattr("migretti.__main__.verify_checksums", lambda env=None: True)
+
+    cmd_verify(Args())
+    captured = capsys.readouterr()
+    assert "Verification Successful" in captured.out
