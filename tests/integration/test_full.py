@@ -18,3 +18,24 @@ TEST_DB_URL = f"postgresql://postgres:postgres@localhost:5432/{TEST_DB_NAME}"
 ASSETS_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "test_assets", "migrations")
 )
+
+def test_db():
+    """
+    Sets up a clean test database environment.
+    """
+    try:
+        conn = psycopg.connect(TEST_DB_URL, autocommit=True)
+    except psycopg.OperationalError:
+        pytest.fail(
+            f"Could not connect to test database at {TEST_DB_URL}. Is it running?"
+        )
+
+    with conn.cursor() as cur:
+        cur.execute("DROP SCHEMA public CASCADE;")
+        cur.execute("CREATE SCHEMA public;")
+
+    conn.close()
+
+    os.environ["MG_DATABASE_URL"] = TEST_DB_URL
+    yield TEST_DB_URL
+    del os.environ["MG_DATABASE_URL"]
