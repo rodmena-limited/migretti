@@ -63,3 +63,30 @@ def worker_apply():
     except Exception as e:
         print(f"Worker failed: {e}")
         return False
+
+def test_concurrent_migrations(test_db_complex, temp_project_complex):
+    """
+    Test: Concurrent Migrations (Advisory Locks)
+    Uses: 03_slow.sql
+    """
+    copy_asset("03_slow.sql")
+
+    p1 = multiprocessing.Process(target=worker_apply)
+    p2 = multiprocessing.Process(target=worker_apply)
+
+    p1.start()
+    p2.start()
+
+    p1.join()
+    p2.join()
+
+    status = get_migration_status()
+    assert len(status) == 1
+    assert status[0]["status"] == "applied"
+
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute("SELECT count(*) FROM _migrations_log WHERE action='UP'")
+        count = cur.fetchone()[0]
+        assert count == 1
+    conn.close()
