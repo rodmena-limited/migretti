@@ -45,3 +45,11 @@ def temp_project_complex():
 
     os.chdir(old_cwd)
     shutil.rmtree(tmp_dir)
+
+def copy_asset(filename, dest_name=None):
+    src = os.path.join(ASSETS_DIR, filename)
+    if dest_name is None:
+        dest_name = filename
+    dst = os.path.join("migrations", dest_name)
+    shutil.copy(src, dst)
+    return dst
