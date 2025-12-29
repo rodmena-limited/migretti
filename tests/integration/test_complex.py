@@ -10,3 +10,4 @@ from migretti.core import apply_migrations, get_migration_status
 from migretti.db import get_connection
 from migretti.logging_setup import setup_logging
 TEST_DB_NAME = "migretti_test"
+TEST_DB_URL = f"postgresql://postgres:postgres@localhost:5432/{TEST_DB_NAME}"
