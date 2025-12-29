@@ -161,3 +161,20 @@ def test_dry_run(test_db, temp_project, capsys):
     apply_migrations()
     status = get_migration_status()
     assert status[0]["status"] == "applied"
+
+def test_verify_checksum_failure(test_db, temp_project):
+    """
+    Test: Checksum mismatch detection
+    Uses: 06_tamper.sql
+    """
+    dst = copy_asset("06_tamper.sql")
+
+    apply_migrations()
+
+    assert verify_checksums() is True
+
+    # Tamper with file
+    with open(dst, "a") as f:
+        f.write("\n-- modified")
+
+    assert verify_checksums() is False
