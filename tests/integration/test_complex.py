@@ -90,3 +90,24 @@ def test_concurrent_migrations(test_db_complex, temp_project_complex):
         count = cur.fetchone()[0]
         assert count == 1
     conn.close()
+
+def test_rollback_atomicity(test_db_complex, temp_project_complex):
+    """
+    Test: Rollback Atomicity on Failure
+    Uses: 04_fail.sql
+    """
+    copy_asset("04_fail.sql")
+
+    with pytest.raises(psycopg.DataError):  # Division by zero
+        apply_migrations()
+
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'should_not_exist')"
+        )
+        assert cur.fetchone()[0] is False
+    conn.close()
+
+    status = get_migration_status()
+    assert status[0]["status"] == "pending"
