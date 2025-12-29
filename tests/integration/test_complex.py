@@ -29,3 +29,19 @@ def test_db_complex():
     os.environ["MG_DATABASE_URL"] = TEST_DB_URL
     yield TEST_DB_URL
     del os.environ["MG_DATABASE_URL"]
+
+def temp_project_complex():
+    setup_logging(verbose=True)
+    old_cwd = os.getcwd()
+    tmp_dir = tempfile.mkdtemp()
+    os.chdir(tmp_dir)
+
+    class Args:
+        pass
+
+    main_mod.cmd_init(Args())
+
+    yield tmp_dir
+
+    os.chdir(old_cwd)
+    shutil.rmtree(tmp_dir)
