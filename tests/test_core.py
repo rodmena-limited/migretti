@@ -16,3 +16,14 @@ DROP TABLE test;
     # Verify markers are not included
     assert "-- migrate: up" not in up
     assert "-- migrate: down" not in down
+
+def test_parse_migration_sql_no_trans():
+    content = """-- migrate: no-transaction
+-- migrate: up
+CREATE INDEX x;
+-- migrate: down
+DROP INDEX x;
+"""
+    up, down, no_trans = parse_migration_sql(content)
+    assert no_trans is True
+    assert "CREATE INDEX x;" in up
