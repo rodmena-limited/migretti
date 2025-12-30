@@ -27,3 +27,9 @@ DROP INDEX x;
     up, down, no_trans = parse_migration_sql(content)
     assert no_trans is True
     assert "CREATE INDEX x;" in up
+
+def test_calculate_checksum():
+    c1 = calculate_checksum("abc")
+    c2 = calculate_checksum("abc")
+    assert c1 == c2
+    assert calculate_checksum("def") != c1
