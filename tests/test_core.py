@@ -33,3 +33,13 @@ def test_calculate_checksum():
     c2 = calculate_checksum("abc")
     assert c1 == c2
     assert calculate_checksum("def") != c1
+
+def test_parse_migration_sql_missing_up_marker():
+    """Migration without '-- migrate: up' marker should raise ValueError."""
+    content = """-- migration: Test
+CREATE TABLE test (id INT);
+-- migrate: down
+DROP TABLE test;
+"""
+    with pytest.raises(ValueError, match="missing '-- migrate: up' marker"):
+        parse_migration_sql(content, "test_migration.sql")
