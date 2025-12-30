@@ -43,3 +43,14 @@ DROP TABLE test;
 """
     with pytest.raises(ValueError, match="missing '-- migrate: up' marker"):
         parse_migration_sql(content, "test_migration.sql")
+
+def test_parse_migration_sql_empty_up_section():
+    """Migration with empty up section should raise ValueError."""
+    content = """-- migration: Test
+-- migrate: up
+
+-- migrate: down
+DROP TABLE test;
+"""
+    with pytest.raises(ValueError, match="has empty '-- migrate: up' section"):
+        parse_migration_sql(content, "test_migration.sql")
