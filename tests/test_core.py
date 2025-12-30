@@ -54,3 +54,14 @@ DROP TABLE test;
 """
     with pytest.raises(ValueError, match="has empty '-- migrate: up' section"):
         parse_migration_sql(content, "test_migration.sql")
+
+def test_parse_migration_sql_missing_down_section(caplog):
+    """Migration without down section should warn but succeed."""
+    content = """-- migration: Test
+-- migrate: up
+CREATE TABLE test (id INT);
+"""
+    up, down, no_trans = parse_migration_sql(content, "test_migration.sql")
+    assert "CREATE TABLE test (id INT);" in up
+    assert down == ""
+    assert "has no '-- migrate: down' section" in caplog.text
