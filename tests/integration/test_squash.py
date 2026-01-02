@@ -7,3 +7,4 @@ from migretti import __main__ as main_mod
 import psycopg
 import tempfile
 TEST_DB_NAME = "migretti_test"
+TEST_DB_URL = f"postgresql://postgres:postgres@localhost:5432/{TEST_DB_NAME}"
