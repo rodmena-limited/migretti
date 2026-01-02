@@ -54,3 +54,39 @@ def _encode_randomness(binary: bytes) -> str:
             lut[(binary[9] & 31)],
         ]
     )
+
+def _encode(binary: bytes) -> str:
+    """Encode 16 bytes to 26 character ULID string."""
+    return _encode_timestamp(binary[:TIMESTAMP_LEN]) + _encode_randomness(
+        binary[TIMESTAMP_LEN:]
+    )
+
+class _ValueProvider:
+    """Thread-safe provider for timestamp and monotonic randomness."""
+    def __init__(self) -> None:
+        self.lock = Lock()
+        self.prev_timestamp = MIN_TIMESTAMP
+        self.prev_randomness = MIN_RANDOMNESS
+
+    def timestamp(self, value: float | None = None) -> int:
+        if value is None:
+            value = time.time_ns() // NANOSECS_IN_MILLISECS
+        elif isinstance(value, float):
+            value = int(value * MILLISECS_IN_SECS)
+        if value > MAX_TIMESTAMP:
+            raise ValueError("Value exceeds maximum possible timestamp")
+        return value
+
+    def randomness(self) -> bytes:
+        with self.lock:
+            current_timestamp = self.timestamp()
+            if current_timestamp == self.prev_timestamp:
+                if self.prev_randomness == MAX_RANDOMNESS:
+                    raise ValueError("Randomness within same millisecond exhausted")
+                randomness = self._increment_bytes(self.prev_randomness)
+            else:
+                randomness = os.urandom(RANDOMNESS_LEN)
+
+            self.prev_randomness = randomness
+            self.prev_timestamp = current_timestamp
+        return randomness
