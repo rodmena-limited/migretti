@@ -38,3 +38,14 @@ def temp_project():
     import shutil
 
     shutil.rmtree(tmp_dir)
+
+def test_seed_create(capsys, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    class Args:
+        seed_command = "create"
+        name = "init_data"
+
+    cmd_seed(Args())
+
+    assert (tmp_path / "seeds/init_data.sql").exists()
