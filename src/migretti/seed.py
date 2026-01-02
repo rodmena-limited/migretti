@@ -9,10 +9,12 @@ from migretti.io_utils import atomic_write
 
 logger = get_logger()
 
+
 def get_seed_files() -> List[str]:
     if not os.path.exists("seeds"):
         return []
     return sorted(glob.glob(os.path.join("seeds", "*.sql")))
+
 
 def run_seeds(env: Optional[str] = None) -> None:
     seeds = get_seed_files()
@@ -29,17 +31,18 @@ def run_seeds(env: Optional[str] = None) -> None:
                 try:
                     with open(seed_file, "r", encoding="utf-8") as f:
                         sql = f.read()
-                    
+
                     # Transaction per file
                     with conn.transaction():
                         cur.execute(sql)
-                    
+
                     logger.info(f"Completed seed: {seed_file}")
                 except Exception as e:
                     logger.error(f"Failed to run seed {seed_file}: {e}")
                     raise e
     finally:
         conn.close()
+
 
 def cmd_seed(args: argparse.Namespace) -> None:
     """Run data seeding scripts."""
@@ -50,7 +53,7 @@ def cmd_seed(args: argparse.Namespace) -> None:
         if not os.path.exists("seeds"):
             os.makedirs("seeds")
             logger.info("Created seeds/ directory")
-            
+
         filepath = os.path.join("seeds", filename)
         try:
             with atomic_write(filepath, exclusive=True) as f:

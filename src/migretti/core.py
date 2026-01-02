@@ -77,7 +77,9 @@ def check_failed_migrations(conn: psycopg.Connection[Any]) -> List[Tuple[str, st
         return cur.fetchall()
 
 
-def get_applied_migrations_details(conn: psycopg.Connection[Any]) -> List[Tuple[str, str, str]]:
+def get_applied_migrations_details(
+    conn: psycopg.Connection[Any],
+) -> List[Tuple[str, str, str]]:
     """Returns list of (id, name, checksum) sorted by applied_at DESC, id DESC."""
     with conn.cursor() as cur:
         cur.execute(
@@ -125,7 +127,9 @@ def verify_checksums(env: Optional[str] = None) -> bool:
         conn.close()
 
 
-def rollback_migrations(steps: int = 1, env: Optional[str] = None, dry_run: bool = False) -> None:
+def rollback_migrations(
+    steps: int = 1, env: Optional[str] = None, dry_run: bool = False
+) -> None:
     execute_hook("pre_rollback", env=env)
     conn = get_connection(env=env)
     lock_id = get_lock_id(env=env)
@@ -166,24 +170,32 @@ def rollback_migrations(steps: int = 1, env: Optional[str] = None, dry_run: bool
                 if dry_run:
                     logger.info(f"[DRY RUN] Rolling back {mig_id} - {name}")
                     logger.info(f"[DRY RUN] SQL:\n{down_sql}")
-                    
+
                     if not no_transaction:
                         try:
                             with conn.transaction():
                                 with conn.cursor() as cur:
-                                    logger.info(f"[DRY RUN] Verifying Rollback SQL for {mig_id}...")
+                                    logger.info(
+                                        f"[DRY RUN] Verifying Rollback SQL for {mig_id}..."
+                                    )
                                     if down_sql.strip():
                                         cur.execute(down_sql)
-                                    logger.info("[DRY RUN] Verification successful. Rolling back changes.")
+                                    logger.info(
+                                        "[DRY RUN] Verification successful. Rolling back changes."
+                                    )
                                     raise psycopg.Rollback()
                         except psycopg.Rollback:
                             pass
                         except Exception as e:
-                            logger.error(f"[DRY RUN] Rollback SQL Verification FAILED: {e}")
+                            logger.error(
+                                f"[DRY RUN] Rollback SQL Verification FAILED: {e}"
+                            )
                             raise e
                     else:
-                        logger.info("[DRY RUN] Skipping verification for non-transactional migration.")
-                        
+                        logger.info(
+                            "[DRY RUN] Skipping verification for non-transactional migration."
+                        )
+
                     continue
 
                 logger.info(f"Rolling back {mig_id} - {name}...")
@@ -256,7 +268,9 @@ def rollback_migrations(steps: int = 1, env: Optional[str] = None, dry_run: bool
         conn.close()
 
 
-def apply_migrations(limit: Optional[int] = None, env: Optional[str] = None, dry_run: bool = False) -> None:
+def apply_migrations(
+    limit: Optional[int] = None, env: Optional[str] = None, dry_run: bool = False
+) -> None:
     execute_hook("pre_apply", env=env)
     conn = get_connection(env=env)
     lock_id = get_lock_id(env=env)
@@ -306,25 +320,31 @@ def apply_migrations(limit: Optional[int] = None, env: Optional[str] = None, dry
                 if dry_run:
                     logger.info(f"[DRY RUN] Applying {mig_id} - {name}")
                     logger.info(f"[DRY RUN] SQL:\n{up_sql}")
-                    
+
                     if not no_transaction:
                         try:
                             # Smart Dry Run: Execute inside a transaction that we explicitly rollback
                             with conn.transaction():
                                 with conn.cursor() as cur:
-                                    logger.info(f"[DRY RUN] Verifying SQL execution for {mig_id}...")
+                                    logger.info(
+                                        f"[DRY RUN] Verifying SQL execution for {mig_id}..."
+                                    )
                                     if up_sql.strip():
                                         cur.execute(up_sql)
-                                    logger.info("[DRY RUN] Verification successful. Rolling back changes.")
-                                    raise psycopg.Rollback() # Force rollback
+                                    logger.info(
+                                        "[DRY RUN] Verification successful. Rolling back changes."
+                                    )
+                                    raise psycopg.Rollback()  # Force rollback
                         except psycopg.Rollback:
-                            pass # Expected
+                            pass  # Expected
                         except Exception as e:
                             logger.error(f"[DRY RUN] SQL Verification FAILED: {e}")
                             raise e
                     else:
-                        logger.info("[DRY RUN] Skipping verification for non-transactional migration.")
-                        
+                        logger.info(
+                            "[DRY RUN] Skipping verification for non-transactional migration."
+                        )
+
                     continue
 
                 logger.info(f"Applying {mig_id} - {name}...")

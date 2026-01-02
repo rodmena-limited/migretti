@@ -23,6 +23,7 @@ def get_connection(env: Optional[str] = None) -> psycopg.Connection[Any]:
     except psycopg.Error as e:
         raise RuntimeError(f"Database connection failed: {e}")
 
+
 def get_lock_id(env: Optional[str] = None) -> int:
     config = load_config(env=env)
     # Default: 894321
@@ -31,8 +32,11 @@ def get_lock_id(env: Optional[str] = None) -> int:
         return val
     return 894321
 
+
 @contextmanager
-def advisory_lock(conn: psycopg.Connection[Any], lock_id: int = 894321) -> Generator[None, None, None]: 
+def advisory_lock(
+    conn: psycopg.Connection[Any], lock_id: int = 894321
+) -> Generator[None, None, None]:
     """
     Acquire a transaction-level advisory lock.
     """

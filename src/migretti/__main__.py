@@ -2,7 +2,7 @@ import argparse
 import sys
 import os
 import re
-import ulid
+from migretti.ulid import ULID
 from typing import Optional
 from migretti.config import CONFIG_FILENAME
 from migretti.core import (
@@ -91,7 +91,7 @@ def cmd_create(args: argparse.Namespace) -> None:
     # Sanitize name
     slug = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
 
-    migration_id = str(ulid.ULID())
+    migration_id = str(ULID())
     filename = f"{migration_id}_{slug}.sql"
     filepath = os.path.join("migrations", filename)
 
@@ -293,16 +293,18 @@ def main() -> None:
     parser_verify.set_defaults(func=cmd_verify)
 
     # prompt
-    parser_prompt = subparsers.add_parser("prompt", help="Show instructions for AI agents")
+    parser_prompt = subparsers.add_parser(
+        "prompt", help="Show instructions for AI agents"
+    )
     parser_prompt.set_defaults(func=cmd_prompt)
 
     # seed
     parser_seed = subparsers.add_parser("seed", help="Manage data seeding")
     seed_subparsers = parser_seed.add_subparsers(dest="seed_command")
-    
+
     # seed run (default)
     parser_seed.set_defaults(func=cmd_seed)
-    
+
     # seed create
     seed_create = seed_subparsers.add_parser("create", help="Create a new seed file")
     seed_create.add_argument("name", help="Name of the seed script")

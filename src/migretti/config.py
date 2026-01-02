@@ -36,7 +36,11 @@ def load_config(env: Optional[str] = None) -> Dict[str, Any]:
 
     final_db_config: Dict[str, Any] = {}
 
-    if "envs" in file_config and isinstance(file_config["envs"], dict) and target_env in file_config["envs"]:
+    if (
+        "envs" in file_config
+        and isinstance(file_config["envs"], dict)
+        and target_env in file_config["envs"]
+    ):
         # Use profile specific config
         env_config = file_config["envs"][target_env]
         if isinstance(env_config, dict):
@@ -60,11 +64,15 @@ def load_config(env: Optional[str] = None) -> Dict[str, Any]:
     final_config: Dict[str, Any] = {"database": final_db_config}
 
     # Lock ID handling
-    if "envs" in file_config and isinstance(file_config["envs"], dict) and target_env in file_config["envs"]:
-         env_config = file_config["envs"][target_env]
-         if isinstance(env_config, dict) and "lock_id" in env_config:
-             final_config["lock_id"] = env_config["lock_id"]
-             
+    if (
+        "envs" in file_config
+        and isinstance(file_config["envs"], dict)
+        and target_env in file_config["envs"]
+    ):
+        env_config = file_config["envs"][target_env]
+        if isinstance(env_config, dict) and "lock_id" in env_config:
+            final_config["lock_id"] = env_config["lock_id"]
+
     if "lock_id" not in final_config and "lock_id" in file_config:
         final_config["lock_id"] = file_config["lock_id"]
 
@@ -77,7 +85,7 @@ def load_config(env: Optional[str] = None) -> Dict[str, Any]:
         try:
             final_config["lock_id"] = int(os.getenv("MG_LOCK_ID", ""))
         except ValueError:
-            pass # Ignore invalid
+            pass  # Ignore invalid
 
     # Database URL Override
     db_url = os.getenv("MG_DATABASE_URL")
