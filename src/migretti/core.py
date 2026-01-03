@@ -11,20 +11,26 @@ from migretti.hooks import execute_hook
 logger = get_logger()
 
 
-def parse_migration_sql(content: str) -> Tuple[str, str, bool]:
+def parse_migration_sql(
+    content: str, filepath: str = "<unknown>"
+) -> Tuple[str, str, bool]:
     lines = content.splitlines()
     up_sql = []
     down_sql = []
     current_section = None
     no_transaction = False
+    found_up = False
+    found_down = False
 
     for line in lines:
         stripped = line.strip()
         if stripped.startswith("-- migrate: up"):
             current_section = "up"
+            found_up = True
             continue
         elif stripped.startswith("-- migrate: down"):
             current_section = "down"
+            found_down = True
             continue
         elif stripped.startswith("-- migrate: no-transaction"):
             no_transaction = True
@@ -35,7 +41,20 @@ def parse_migration_sql(content: str) -> Tuple[str, str, bool]:
         elif current_section == "down":
             down_sql.append(line)
 
-    return "\n".join(up_sql), "\n".join(down_sql), no_transaction
+    up_sql_str = "\n".join(up_sql).strip()
+    down_sql_str = "\n".join(down_sql).strip()
+
+    # Validate up section (required)
+    if not found_up:
+        raise ValueError(f"Migration {filepath} missing '-- migrate: up' marker")
+    if not up_sql_str:
+        raise ValueError(f"Migration {filepath} has empty '-- migrate: up' section")
+
+    # Warn about missing down section
+    if not found_down or not down_sql_str:
+        logger.warning(f"Migration {filepath} has no '-- migrate: down' section")
+
+    return up_sql_str, down_sql_str, no_transaction
 
 
 def calculate_checksum(content: str) -> str:
@@ -164,7 +183,7 @@ def rollback_migrations(
                     logger.error(f"Error reading {filepath}: {e}")
                     raise
 
-                _, down_sql, no_transaction = parse_migration_sql(content)
+                _, down_sql, no_transaction = parse_migration_sql(content, filepath)
                 checksum = calculate_checksum(content)
 
                 if dry_run:
@@ -314,7 +333,7 @@ def apply_migrations(
                     logger.error(f"Error reading {filepath}: {e}")
                     raise
 
-                up_sql, _, no_transaction = parse_migration_sql(content)
+                up_sql, _, no_transaction = parse_migration_sql(content, filepath)
                 checksum = calculate_checksum(content)
 
                 if dry_run:

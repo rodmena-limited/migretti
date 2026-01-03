@@ -52,7 +52,7 @@ def cmd_squash(args: argparse.Namespace) -> None:
         with open(filepath, "r", encoding="utf-8") as f:
             content = f.read()
 
-        up, down, no_trans = parse_migration_sql(content)
+        up, down, no_trans = parse_migration_sql(content, filepath)
         if no_trans:
             logger.warning(
                 "Warning: Squashing contains non-transactional migrations. Result will be marked transactional unless manually edited."
