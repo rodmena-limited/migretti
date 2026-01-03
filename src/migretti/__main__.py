@@ -313,6 +313,9 @@ def main() -> None:
     # squash
     parser_squash = subparsers.add_parser("squash", help="Squash pending migrations")
     parser_squash.add_argument("name", help="Name of the new squashed migration")
+    parser_squash.add_argument(
+        "--dry-run", action="store_true", help="Preview squash without making changes"
+    )
     parser_squash.set_defaults(func=cmd_squash)
 
     args = parser.parse_args()
