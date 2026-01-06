@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "migretti"
-version = "0.9.4"
+version = "0.9.5"
 description = "A database migration tool for Python applications."
 readme = "README.md"
 requires-python = ">=3.8"
@@ -21,7 +21,7 @@ classifiers = [
   "Operating System :: OS Independent",
 ]
 dependencies = [
-  "psycopg[binary]",
+  "psycopg",
   "pyyaml",
   "python-dotenv",
   "sqlparse",
@@ -41,7 +41,6 @@ dev = [
   "issuedb",
   "build",
   "types-pyyaml",
-  "types-psycopg2",
 ]
 
 [project.scripts]
