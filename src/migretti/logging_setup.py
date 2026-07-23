@@ -23,8 +23,11 @@ class JsonFormatter(logging.Formatter):
 def setup_logging(json_format: bool = False, verbose: bool = False) -> None:
     """
     Setup logging configuration.
+
+    Logs go to stderr; stdout is reserved for command output (status tables,
+    created file names, ...) so scripts and JSON-log consumers can parse it.
     """
-    handler = logging.StreamHandler(sys.stdout)
+    handler = logging.StreamHandler(sys.stderr)
 
     formatter: logging.Formatter
     if json_format:
