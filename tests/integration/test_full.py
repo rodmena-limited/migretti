@@ -16,7 +16,7 @@ from migretti.logging_setup import setup_logging
 
 # Test DB Config
 TEST_DB_NAME = "migretti_test"
-TEST_DB_URL = f"postgresql://postgres:postgres@localhost:5432/{TEST_DB_NAME}"
+TEST_DB_URL = os.environ.get("MIGRETTI_TEST_DB_URL", f"postgresql://postgres:postgres@localhost:5432/{TEST_DB_NAME}")
 ASSETS_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "test_assets", "migrations")
 )
@@ -195,7 +195,7 @@ def test_prod_protection(test_db, temp_project, monkeypatch):
     """
     Test: Production environment requires confirmation
     """
-    os.environ["MG_ENV"] = "prod"
+    monkeypatch.setenv("MG_ENV", "prod")
 
     def mock_exit(code):
         if code != 0:

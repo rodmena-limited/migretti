@@ -7,7 +7,7 @@ from migretti import __main__ as main_mod
 from migretti.logging_setup import setup_logging
 
 TEST_DB_NAME = "migretti_test"
-TEST_DB_URL = f"postgresql://postgres:postgres@localhost:5432/{TEST_DB_NAME}"
+TEST_DB_URL = os.environ.get("MIGRETTI_TEST_DB_URL", f"postgresql://postgres:postgres@localhost:5432/{TEST_DB_NAME}")
 
 
 @pytest.fixture(scope="function")

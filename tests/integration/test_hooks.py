@@ -8,7 +8,7 @@ from migretti import __main__ as main_mod
 from migretti.logging_setup import setup_logging
 
 TEST_DB_NAME = "migretti_test"
-TEST_DB_URL = f"postgresql://postgres:postgres@localhost:5432/{TEST_DB_NAME}"
+TEST_DB_URL = os.environ.get("MIGRETTI_TEST_DB_URL", f"postgresql://postgres:postgres@localhost:5432/{TEST_DB_NAME}")
 
 
 @pytest.fixture(scope="function")
@@ -62,6 +62,17 @@ hooks:
         name = "Hook Test"
 
     cmd_create(Args())
+
+    # Fill in real SQL: apply rejects migrations with an empty up section
+    import glob
+
+    mig_file = glob.glob("migrations/*.sql")[0]
+    with open(mig_file, "r") as f:
+        content = f.read()
+    content = content.replace("-- migrate: up\n\n", "-- migrate: up\nSELECT 1;\n")
+    content = content.replace("-- migrate: down\n\n", "-- migrate: down\nSELECT 1;\n")
+    with open(mig_file, "w") as f:
+        f.write(content)
 
     # Apply
     import logging

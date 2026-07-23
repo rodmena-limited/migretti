@@ -8,7 +8,7 @@ import psycopg
 import tempfile
 
 TEST_DB_NAME = "migretti_test"
-TEST_DB_URL = f"postgresql://postgres:postgres@localhost:5432/{TEST_DB_NAME}"
+TEST_DB_URL = os.environ.get("MIGRETTI_TEST_DB_URL", f"postgresql://postgres:postgres@localhost:5432/{TEST_DB_NAME}")
 
 
 @pytest.fixture(scope="function")
