@@ -28,11 +28,19 @@ You are an AI agent using `migretti` (mg) to manage database migrations for a Py
 
 ### Rollback
 - `mg down`: Rollback the last applied migration.
-- `mg rollback <n>`: Rollback the last N migrations.
+- `mg rollback <n>`: Rollback the last N migrations (N must be >= 1; prompts unless `--yes`).
+- Rolling back a migration with no `down` SQL is refused unless `--allow-missing-down` is passed.
+
+### Recovery
+- `mg fix <id> --applied`: After a partial (dirty) failure you repaired by hand, mark the migration as applied.
+- `mg fix <id> --remove`: After undoing a partial failure by hand, make the migration pending again.
 
 ### Advanced
-- `mg apply --dry-run`: Preview SQL without executing.
-- `mg apply --env prod`: Target a specific environment profile from `mg.yaml`.
+- `mg apply --dry-run`: Validate SQL by executing it inside a transaction that is rolled back.
+  Note: this is not read-only — sequences advance and DDL takes its usual locks while running.
+- `mg apply --env prod` or `mg --env prod apply`: Target an environment profile from `mg.yaml` (both orders work).
+  An `--env` name that is not defined in `mg.yaml` is an error.
+- `mg apply --allow-out-of-order`: Apply migrations that sort before already-applied ones (after branch merges).
 
 ## Typical Workflow for Agent
 1. Check current status: `mg status`
