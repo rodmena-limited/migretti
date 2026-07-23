@@ -4,7 +4,7 @@ import sys
 
 
 def test_version():
-    assert __version__ == "0.9.2"
+    assert __version__ == "0.10.0"
 
 
 def test_main(capsys, monkeypatch):
