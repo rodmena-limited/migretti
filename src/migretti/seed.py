@@ -1,11 +1,13 @@
 import os
 import glob
+import re
 import sys
 import argparse
 from typing import List, Optional
 from migretti.db import get_connection
 from migretti.logging_setup import get_logger
 from migretti.io_utils import atomic_write
+from migretti.safety import check_prod_protection
 
 logger = get_logger()
 
@@ -24,7 +26,6 @@ def run_seeds(env: Optional[str] = None) -> None:
 
     conn = get_connection(env=env)
     try:
-        # Seeding should probably be transactional per file?
         with conn.cursor() as cur:
             for seed_file in seeds:
                 logger.info(f"Running seed: {seed_file}")
@@ -49,7 +50,12 @@ def cmd_seed(args: argparse.Namespace) -> None:
     # Subcommand handling: seed run (default) or seed create
     if getattr(args, "seed_command", None) == "create":
         name = args.name
-        filename = f"{name}.sql"
+        # Sanitize: seeds always land inside seeds/, whatever the input.
+        slug = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+        if not slug:
+            logger.error(f"Seed name {name!r} produces an empty filename.")
+            sys.exit(1)
+        filename = f"{slug}.sql"
         if not os.path.exists("seeds"):
             os.makedirs("seeds")
             logger.info("Created seeds/ directory")
@@ -63,5 +69,7 @@ def cmd_seed(args: argparse.Namespace) -> None:
             logger.error(f"Failed to create seed file: {e}")
             sys.exit(1)
     else:
-        # Run seeds
-        run_seeds(env=args.env)
+        # Run seeds — this executes SQL against the target, so it gets the
+        # same production gate as apply/rollback.
+        check_prod_protection(args)
+        run_seeds(env=getattr(args, "env", None))
